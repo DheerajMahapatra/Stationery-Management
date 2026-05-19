@@ -1,0 +1,6 @@
+# Binod Book Binding — Python Dependencies
+# Core: Python 3.10+ with Tkinter (ships with Python)
+# SQLite3 (ships with Python)
+
+# Optional — for PDF bill export:
+reportlab>=4.0.0
