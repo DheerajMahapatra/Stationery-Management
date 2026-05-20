@@ -106,8 +106,8 @@ def generate_pdf_with_reportlab(bill_data: dict, safe_bn: str) -> str:
         Paragraph("BINOD BOOK BINDING", company_style),
         Paragraph("Premium Stationery & Book Binding Shop", tagline_style),
         Spacer(1, 2 * mm),
-        Paragraph("<b>✉</b> info@binodbooks.com | <b>✆</b> +91 XXXXXXXXXX", meta_style),
-        Paragraph("📍 Your City, State, India - ZIP", meta_style)
+        Paragraph("<b>✉</b> info@binodbooks.com | <b>✆</b> +91 7903964574", meta_style),
+        Paragraph("📍 Mosabani, Near - Rabindra Sang", meta_style)
     ]
     
     header_right = [

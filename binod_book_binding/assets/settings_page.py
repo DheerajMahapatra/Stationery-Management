@@ -1,10 +1,14 @@
+
 """
-Settings page — theme, password, database backup.
+Settings page — theme, profile credential overrides, database backup.
+Integrated with visibility toggle controls and structural username parameters.
 """
 
 import tkinter as tk
 from tkinter import messagebox, filedialog
-import shutil, os
+import shutil
+import os
+import sqlite3
 from datetime import datetime
 from assets import theme as theme_module
 from assets.theme import get as T, FONTS, set_theme
@@ -18,6 +22,12 @@ class SettingsPage(tk.Frame):
         super().__init__(master, bg=t["bg"], **kwargs)
         self.root_ref = root_ref
         self.on_theme_change = on_theme_change
+        
+        # State tracking trackers for visibility states
+        self.old_pw_visible = False
+        self.new_pw_visible = False
+        self.confirm_pw_visible = False
+        
         self._build()
 
     def _build(self):
@@ -27,44 +37,66 @@ class SettingsPage(tk.Frame):
         content = tk.Frame(self, bg=t["bg"])
         content.pack(fill="both", expand=True, padx=24)
 
-        # # ── Appearance ─────────────────────────────────────────────────────────
-        # card1 = tk.Frame(content, bg=t["card"], padx=24, pady=20)
-        # card1.pack(fill="x", pady=8)
-        # tk.Label(card1, text="🎨 Appearance", bg=t["card"], fg=t["accent"],
-        #          font=FONTS["subhead"]).pack(anchor="w", pady=(0,10))
-
-        # mode_row = tk.Frame(card1, bg=t["card"])
-        # mode_row.pack(anchor="w")
-        # tk.Label(mode_row, text="Theme Mode:", bg=t["card"], fg=t["text"],
-        #          font=FONTS["body"]).pack(side="left", padx=(0,12))
-
-        # self.mode_var = tk.StringVar(value=t["mode"])
-        # for mode, label in [("dark", "🌙 Dark"), ("light", "☀️ Light")]:
-        #     tk.Radiobutton(
-        #         mode_row, text=label, variable=self.mode_var, value=mode,
-        #         bg=t["card"], fg=t["text"], selectcolor=t["card2"],
-        #         activebackground=t["card"], font=FONTS["body"],
-        #         command=self._apply_theme
-        #     ).pack(side="left", padx=8)
-
-        # ── Change Password ────────────────────────────────────────────────────
+        # ── Change Username & Password ──────────────────────────────────────────
         card2 = tk.Frame(content, bg=t["card"], padx=24, pady=20)
         card2.pack(fill="x", pady=8)
-        tk.Label(card2, text="🔐 Change Password", bg=t["card"], fg=t["accent"],
+        tk.Label(card2, text="🔐 Update Profile Credentials", bg=t["card"], fg=t["accent"],
                  font=FONTS["subhead"]).pack(anchor="w", pady=(0,10))
 
-        self.old_pw  = LabeledEntry(card2, label="Current Password", show="●", width=30)
-        self.old_pw.pack(anchor="w", pady=4)
-        self.new_pw  = LabeledEntry(card2, label="New Password", show="●", width=30)
-        self.new_pw.pack(anchor="w", pady=4)
-        self.new_pw2 = LabeledEntry(card2, label="Confirm New Password", show="●", width=30)
-        self.new_pw2.pack(anchor="w", pady=4)
+        # 1. Current Password Entry Row
+        old_pw_frame = tk.Frame(card2, bg=t["card"])
+        old_pw_frame.pack(anchor="w", pady=4)
+        self.old_pw = LabeledEntry(old_pw_frame, label="Current Password", show="●", width=30)
+        self.old_pw.pack(side="left", anchor="w")
+        
+        self.old_toggle_btn = tk.Button(
+            old_pw_frame, text="👁", font=("Segoe UI", 10), bg=t["card"], fg=t["text2"],
+            relief="flat", activebackground=t["card"], cursor="hand2", bd=0,
+            command=self._toggle_old_password
+        )
+        # Fixed: changed align="bottom" to anchor="s"
+        self.old_toggle_btn.pack(side="left", padx=6, anchor="s", pady=(20, 0))
 
-        self.pw_err = tk.Label(card2, text="", bg=t["card"], fg=t["danger"],
-                               font=FONTS["small"])
-        self.pw_err.pack(anchor="w")
-        FlatButton(card2, text="Update Password", icon="🔑",
-                   command=self._change_password).pack(anchor="w", pady=8)
+        # Divider line
+        tk.Frame(card2, height=1, bg=t["bg"], width=300).pack(anchor="w", pady=10)
+
+        # 2. Target New Username Row
+        self.new_username = LabeledEntry(card2, label="New Username", width=30)
+        self.new_username.pack(anchor="w", pady=4)
+
+        # 3. Target New Password Row
+        new_pw_frame = tk.Frame(card2, bg=t["card"])
+        new_pw_frame.pack(anchor="w", pady=4)
+        self.new_pw = LabeledEntry(new_pw_frame, label="New Password", show="●", width=30)
+        self.new_pw.pack(side="left", anchor="w")
+        
+        self.new_toggle_btn = tk.Button(
+            new_pw_frame, text="👁", font=("Segoe UI", 10), bg=t["card"], fg=t["text2"],
+            relief="flat", activebackground=t["card"], cursor="hand2", bd=0,
+            command=self._toggle_new_password
+        )
+        # Fixed: changed align="bottom" to anchor="s"
+        self.new_toggle_btn.pack(side="left", padx=6, anchor="s", pady=(20, 0))
+
+        # 4. Confirm Target New Password Row
+        confirm_frame = tk.Frame(card2, bg=t["card"])
+        confirm_frame.pack(anchor="w", pady=4)
+        self.new_pw2 = LabeledEntry(confirm_frame, label="Confirm New Password", show="●", width=30)
+        self.new_pw2.pack(side="left", anchor="w")
+        
+        self.confirm_toggle_btn = tk.Button(
+            confirm_frame, text="👁", font=("Segoe UI", 10), bg=t["card"], fg=t["text2"],
+            relief="flat", activebackground=t["card"], cursor="hand2", bd=0,
+            command=self._toggle_confirm_password
+        )
+        # Fixed: changed align="bottom" to anchor="s"
+        self.confirm_toggle_btn.pack(side="left", padx=6, anchor="s", pady=(20, 0))
+
+        self.pw_err = tk.Label(card2, text="", bg=t["card"], fg=t["danger"], font=FONTS["small"])
+        self.pw_err.pack(anchor="w", pady=2)
+        
+        FlatButton(card2, text="Update Account Settings", icon="🔑",
+                    command=self._change_credentials).pack(anchor="w", pady=8)
 
         # ── Database Backup ────────────────────────────────────────────────────
         card3 = tk.Frame(content, bg=t["card"], padx=24, pady=20)
@@ -74,7 +106,7 @@ class SettingsPage(tk.Frame):
         tk.Label(card3, text=f"Current DB: {DB_PATH}", bg=t["card"], fg=t["text2"],
                  font=FONTS["small"], wraplength=500, anchor="w").pack(anchor="w")
         FlatButton(card3, text="Backup Database", icon="💾",
-                   command=self._backup).pack(anchor="w", pady=8)
+                    command=self._backup).pack(anchor="w", pady=8)
 
         # ── About ──────────────────────────────────────────────────────────────
         card4 = tk.Frame(content, bg=t["card"], padx=24, pady=20)
@@ -89,45 +121,107 @@ class SettingsPage(tk.Frame):
         tk.Label(card4, text=about, bg=t["card"], fg=t["text2"],
                  font=FONTS["body"], justify="left").pack(anchor="w")
 
-    def _apply_theme(self):
-        set_theme(self.mode_var.get())
-        if self.on_theme_change:
-            self.on_theme_change()
-        messagebox.showinfo("Theme", "Theme changed! Please restart the app for full effect.")
+    # =========================================================
+    # VISIBILITY PASSWORDS TOGGLE UTILITIES
+    # =========================================================
+    def _toggle_old_password(self):
+        self.old_pw_visible = not self.old_pw_visible
+        char = "" if self.old_pw_visible else "●"
+        icon = "🙈" if self.old_pw_visible else "👁"
+        self.old_pw.entry.config(show=char)
+        self.old_toggle_btn.config(text=icon)
 
-    def _change_password(self):
-        old = self.old_pw.get()
-        new = self.new_pw.get()
-        c   = self.new_pw2.get()
+    def _toggle_new_password(self):
+        self.new_pw_visible = not self.new_pw_visible
+        char = "" if self.new_pw_visible else "●"
+        icon = "🙈" if self.new_pw_visible else "👁"
+        self.new_pw.entry.config(show=char)
+        self.new_toggle_btn.config(text=icon)
 
-        if not old or not new or not c:
-            self.pw_err.config(text="⚠  All fields are required.")
+    def _toggle_confirm_password(self):
+        self.confirm_pw_visible = not self.confirm_pw_visible
+        char = "" if self.confirm_pw_visible else "●"
+        icon = "🙈" if self.confirm_pw_visible else "👁"
+        self.new_pw2.entry.config(show=char)
+        self.confirm_toggle_btn.config(text=icon)
+
+    # =========================================================
+    # TRANSACTION SECURE EXECUTION CONTROLLERS
+    # =========================================================
+    def _change_credentials(self):
+        old_password_input = self.old_pw.get()
+        new_username_input = self.new_username.get().strip()
+        new_password_input = self.new_pw.get()
+        confirm_password_input = self.new_pw2.get()
+
+        # Validation Checkpoints
+        if not old_password_input or not new_username_input or not new_password_input or not confirm_password_input:
+            self.pw_err.config(text="⚠  All fields are explicitly required.")
             return
-        if new != c:
+        if new_password_input != confirm_password_input:
             self.pw_err.config(text="⚠  New passwords do not match.")
             return
-        if len(new) < 6:
-            self.pw_err.config(text="⚠  Password must be at least 6 characters.")
+        if len(new_password_input) < 6:
+            self.pw_err.config(text="⚠  New password parameters must be at least 6 characters.")
             return
 
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_id FROM users WHERE username='admin' AND password=?",
-                       (hash_password(old),))
-        if not cursor.fetchone():
-            conn.close()
-            self.pw_err.config(text="❌  Current password is incorrect.")
-            return
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            # Lookup validating match on stored parameters matching active user role mappings
+            cursor.execute(
+                "SELECT user_id, username FROM users WHERE role='admin' AND password=? LIMIT 1",
+                (hash_password(old_password_input),)
+            )
+            admin_record = cursor.fetchone()
+            
+            if not admin_record:
+                self.pw_err.config(text="❌  Current password parameter validation failed.")
+                return
 
-        cursor.execute("UPDATE users SET password=? WHERE username='admin'",
-                       (hash_password(new),))
-        conn.commit()
-        conn.close()
+            admin_user_id = admin_record["user_id"]
 
-        self.pw_err.config(text="")
-        for f in (self.old_pw, self.new_pw, self.new_pw2):
-            f.clear()
-        Toast(self.root_ref or self, "Password updated successfully!", "success")
+            # Prevent collisions if new username exists under another account profile instance
+            cursor.execute(
+                "SELECT user_id FROM users WHERE username=? AND user_id != ?", 
+                (new_username_input, admin_user_id)
+            )
+            if cursor.fetchone():
+                self.pw_err.config(text="❌  Target username parameter is already taken.")
+                return
+
+            # Atomically update profile database records
+            cursor.execute(
+                "UPDATE users SET username=?, password=? WHERE user_id=?",
+                (new_username_input, hash_password(new_password_input), admin_user_id)
+            )
+            conn.commit()
+
+            # UI Cleanup reflection reset fields
+            self.pw_err.config(text="")
+            for widget in (self.old_pw, self.new_username, self.new_pw, self.new_pw2):
+                widget.clear()
+
+            # Revert UI mask visuals back to standard secure defaults
+            self.old_pw_visible = False
+            self.new_pw_visible = False
+            self.confirm_pw_visible = False
+            self.old_pw.entry.config(show="●")
+            self.new_pw.entry.config(show="●")
+            self.new_pw2.entry.config(show="●")
+            self.old_toggle_btn.config(text="👁")
+            self.new_toggle_btn.config(text="👁")
+            self.confirm_toggle_btn.config(text="👁")
+
+            Toast(self.root_ref or self, "Credentials changed successfully!", "success")
+
+        except Exception as database_err:
+            messagebox.showerror("System Database Error", f"Unable to modify fields: {database_err}")
+        finally:
+            if conn:
+                conn.close()
 
     def _backup(self):
         dest = filedialog.askdirectory(title="Select Backup Folder")
