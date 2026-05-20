@@ -20,76 +20,130 @@ class BillsHistoryPage(tk.Frame):
         t = T()
         super().__init__(master, bg=t["bg"], **kwargs)
         self.root_ref = root_ref
+        
+        # UI Placeholder state tracks
+        self.placeholder_text = "Search by client or bill number..."
         self._build()
 
     def _build(self):
         t = T()
         section_header(self, "📋 Bills History", "All past transactions")
 
-        # Search + actions
+        # =====================================================
+        # TOP ACTIONS BAR
+        # =====================================================
         top = tk.Frame(self, bg=t["bg"])
-        top.pack(fill="x", padx=24, pady=(0, 8))
+        top.pack(fill="x", padx=24, pady=(0, 12))
 
-        tk.Label(top, text="🔍", bg=t["bg"], fg=t["text2"],
+        # Search wrapper group
+        search_frame = tk.Frame(top, bg=t["bg"])
+        search_frame.pack(side="left", fill="y")
+
+        tk.Label(search_frame, text="🔍", bg=t["bg"], fg=t["text2"],
                  font=FONTS["body"]).pack(side="left")
+        
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *a: self._search())
-        tk.Entry(top, textvariable=self.search_var,
-                 bg=t["entry_bg"], fg=t["entry_fg"],
-                 insertbackground=t["entry_fg"],
-                 relief="flat", bd=0, font=FONTS["body"],
-                 highlightthickness=1,
-                 highlightbackground=t["border"],
-                 highlightcolor=t["accent"],
-                 width=32).pack(side="left", padx=8, ipady=5)
+        
+        self.search_entry = tk.Entry(
+            search_frame, textvariable=self.search_var,
+            bg=t["entry_bg"], fg=t["text2"], # Initialized using muted placeholder color profile
+            insertbackground=t["entry_fg"],
+            relief="flat", bd=0, font=FONTS["body"],
+            highlightthickness=1,
+            highlightbackground=t["border"],
+            highlightcolor=t["accent"],
+            width=36
+        )
+        self.search_entry.pack(side="left", padx=8, ipady=5)
+        
+        # Setup modern entry field visual interactive placeholders
+        self.search_entry.insert(0, self.placeholder_text)
+        self.search_entry.bind("<FocusIn>", self._clear_placeholder)
+        self.search_entry.bind("<FocusOut>", self._add_placeholder)
 
-        FlatButton(top, text="Refresh", icon="🔄",
-                   command=self.refresh).pack(side="left", padx=4)
-        FlatButton(top, text="View Bill", icon="👁️",
-                   command=self._view_bill).pack(side="left", padx=4)
-        FlatButton(top, text="Export PDF", icon="📄",
-                   command=self._export_pdf).pack(side="left", padx=4)
+        # Action Buttons Layout Group (Removed reduntant View Bill action)
+        FlatButton(top, text="Refresh Logs", icon="🔄",
+                   command=self.refresh).pack(side="right", padx=4)
+        FlatButton(top, text="Export PDF / Print", icon="📄",
+                   command=self._export_pdf).pack(side="right", padx=4)
 
-        # Bills table
+        # =====================================================
+        # MASTER: BILLS SUMMARY VIEW
+        # =====================================================
         cols = [
             ("bill_number",   "Bill No",    140),
-            ("customer_name", "Customer",   160),
+            ("customer_name", "Customer",   180),
             ("phone_number",  "Phone",      120),
-            ("address",       "Address",    160),
-            ("grand_total",   "Amount (₹)", 110),
+            ("address",       "Address",    180),
+            ("grand_total",   "Amount",     110),
             ("bill_date",     "Date",       155),
         ]
+        
         tree_frame = tk.Frame(self, bg=t["bg"])
-        tree_frame.pack(fill="both", expand=True, padx=24)
-        self.tree = make_treeview(tree_frame, cols, height=16)
-        self.tree.bind("<Double-1>", lambda e: self._view_bill())
+        tree_frame.pack(fill="both", expand=True, padx=24, pady=(0, 12))
+        
+        self.tree = make_treeview(tree_frame, cols, height=12)
+        
+        # UI Event Triggers: Connect live sync selections & double click overrides
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self._view_bill_details())
+        self.tree.bind("<Double-1>", lambda e: self._export_pdf())
 
-        # Bill items panel
-        section_header(self, "📦 Bill Items (selected bill)")
+        # =====================================================
+        # DETAIL: ITEMIZED PANEL VIEW
+        # =====================================================
+        section_header(self, "📦 Bill Items", "Breakdown of the selected statement logs")
+        
         item_cols = [
-            ("product_name", "Product",   200),
-            ("quantity",     "Qty",        60),
-            ("price_per_item","Unit (₹)",  90),
-            ("total_bill",   "Subtotal (₹)",100),
+            ("product_name", "Product / Description", 240),
+            ("quantity",     "Qty",                    70),
+            ("price_per_item","Unit Price",            110),
+            ("total_bill",   "Subtotal",               120),
         ]
+        
         item_frame = tk.Frame(self, bg=t["bg"])
-        item_frame.pack(fill="x", padx=24, pady=(0, 12))
+        item_frame.pack(fill="x", padx=24, pady=(0, 16))
         self.item_tree = make_treeview(item_frame, item_cols, height=6)
 
         self.refresh()
 
+    # Placeholder focus events definitions
+    def _clear_placeholder(self, event):
+        t = T()
+        if self.search_var.get() == self.placeholder_text:
+            self.search_entry.delete(0, tk.END)
+            self.search_entry.config(fg=t["entry_fg"])
+
+    def _add_placeholder(self, event):
+        t = T()
+        if not self.search_var.get().strip():
+            self.search_entry.insert(0, self.placeholder_text)
+            self.search_entry.config(fg=t["text2"])
+
     def _search(self):
         q = self.search_var.get().strip()
+        # Prevent query collisions with default helper placeholder text strings
+        if q == self.placeholder_text:
+            return
+            
         rows = search_bills(q) if q else get_all_bills()
         self._load(rows)
 
     def refresh(self):
-        rows = get_all_bills()
+        # Temporarily detach validation listeners during updates to prevent recursive filter loops
+        current_query = self.search_var.get()
+        if current_query and current_query != self.placeholder_text:
+            rows = search_bills(current_query)
+        else:
+            rows = get_all_bills()
         self._load(rows)
 
     def _load(self, rows):
         for r in rows:
-            r["grand_total"] = f"₹ {r['grand_total']:,.2f}"
+            # Check explicitly if formatting is already present to prevent duplicating symbols
+            if isinstance(r["grand_total"], (int, float)):
+                r["grand_total"] = f"₹ {r['grand_total']:,.2f}"
+                
         populate_tree(self.tree, rows,
                       ["bill_number", "customer_name", "phone_number",
                        "address", "grand_total", "bill_date"])
@@ -98,32 +152,41 @@ class BillsHistoryPage(tk.Frame):
     def _get_selected_bill(self):
         sel = self.tree.selection()
         if not sel:
-            messagebox.showinfo("Select Bill", "Please select a bill first.")
             return None
-        return self.tree.item(sel[0], "values")[0]  # bill_number
+        return self.tree.item(sel[0], "values")[0]  # Return unique bill_number identifier string
 
-    def _view_bill(self):
+    def _view_bill_details(self):
         bn = self._get_selected_bill()
         if not bn:
             return
+            
         items = get_bill_items(bn)
         self.item_tree.delete(*self.item_tree.get_children())
+        
         for i, item in enumerate(items):
             tag = "alt" if i % 2 == 1 else ""
-            self.item_tree.insert("", "end", values=(
-                item["product_name"], item["quantity"],
-                f"₹ {item['price_per_item']:.2f}",
-                f"₹ {item['total_bill']:.2f}",
-            ), tags=(tag,))
+            self.item_tree.insert(
+                "", "end", 
+                values=(
+                    item["product_name"], 
+                    item["quantity"],
+                    f"₹ {item['price_per_item']:,.2f}",
+                    f"₹ {item['total_bill']:,.2f}",
+                ), 
+                tags=(tag,)
+            )
         self.item_tree.tag_configure("alt", background=T()["tree_alt"])
 
     def _export_pdf(self):
         bn = self._get_selected_bill()
         if not bn:
+            messagebox.showinfo("Selection Required", "Please select an invoice from the ledger queue first.")
             return
+            
         sel = self.tree.selection()
         vals = self.tree.item(sel[0], "values")
         items_raw = get_bill_items(bn)
+        
         items = [{
             "product_name": it["product_name"],
             "quantity":     it["quantity"],
@@ -132,6 +195,7 @@ class BillsHistoryPage(tk.Frame):
         } for it in items_raw]
 
         grand_total = sum(it["subtotal"] for it in items)
+        
         bill_data = {
             "bill_number":   bn,
             "customer_name": vals[1],
@@ -141,6 +205,10 @@ class BillsHistoryPage(tk.Frame):
             "grand_total":   grand_total,
             "bill_date":     vals[5],
         }
-        path = generate_pdf_bill(bill_data)
-        open_file(path)
-        Toast(self.root_ref or self, f"PDF saved!", "success")
+        
+        try:
+            path = generate_pdf_bill(bill_data)
+            open_file(path)
+            Toast(self.root_ref or self, "Invoice PDF Generated Successfully!", "success")
+        except Exception as e:
+            messagebox.showerror("Export Failed", f"An error occurred while compiling your document file: {e}")
