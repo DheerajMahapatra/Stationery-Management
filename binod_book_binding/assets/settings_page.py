@@ -27,25 +27,25 @@ class SettingsPage(tk.Frame):
         content = tk.Frame(self, bg=t["bg"])
         content.pack(fill="both", expand=True, padx=24)
 
-        # ── Appearance ─────────────────────────────────────────────────────────
-        card1 = tk.Frame(content, bg=t["card"], padx=24, pady=20)
-        card1.pack(fill="x", pady=8)
-        tk.Label(card1, text="🎨 Appearance", bg=t["card"], fg=t["accent"],
-                 font=FONTS["subhead"]).pack(anchor="w", pady=(0,10))
+        # # ── Appearance ─────────────────────────────────────────────────────────
+        # card1 = tk.Frame(content, bg=t["card"], padx=24, pady=20)
+        # card1.pack(fill="x", pady=8)
+        # tk.Label(card1, text="🎨 Appearance", bg=t["card"], fg=t["accent"],
+        #          font=FONTS["subhead"]).pack(anchor="w", pady=(0,10))
 
-        mode_row = tk.Frame(card1, bg=t["card"])
-        mode_row.pack(anchor="w")
-        tk.Label(mode_row, text="Theme Mode:", bg=t["card"], fg=t["text"],
-                 font=FONTS["body"]).pack(side="left", padx=(0,12))
+        # mode_row = tk.Frame(card1, bg=t["card"])
+        # mode_row.pack(anchor="w")
+        # tk.Label(mode_row, text="Theme Mode:", bg=t["card"], fg=t["text"],
+        #          font=FONTS["body"]).pack(side="left", padx=(0,12))
 
-        self.mode_var = tk.StringVar(value=t["mode"])
-        for mode, label in [("dark", "🌙 Dark"), ("light", "☀️ Light")]:
-            tk.Radiobutton(
-                mode_row, text=label, variable=self.mode_var, value=mode,
-                bg=t["card"], fg=t["text"], selectcolor=t["card2"],
-                activebackground=t["card"], font=FONTS["body"],
-                command=self._apply_theme
-            ).pack(side="left", padx=8)
+        # self.mode_var = tk.StringVar(value=t["mode"])
+        # for mode, label in [("dark", "🌙 Dark"), ("light", "☀️ Light")]:
+        #     tk.Radiobutton(
+        #         mode_row, text=label, variable=self.mode_var, value=mode,
+        #         bg=t["card"], fg=t["text"], selectcolor=t["card2"],
+        #         activebackground=t["card"], font=FONTS["body"],
+        #         command=self._apply_theme
+        #     ).pack(side="left", padx=8)
 
         # ── Change Password ────────────────────────────────────────────────────
         card2 = tk.Frame(content, bg=t["card"], padx=24, pady=20)
